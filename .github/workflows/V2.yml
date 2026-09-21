@@ -1,0 +1,98 @@
+name: Mi A1
+on:
+  workflow_dispatch:
+jobs:
+  build:
+
+    name: Build Kernel for Xiaomi Mi A1
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+
+    - name: Cleanup Disk Space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential git curl wget bison flex zip bc cpio libssl-dev ccache python-is-python3
+
+    - name: Setup Cache (ccache)
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/ccache_mikernel
+        key: kernel-ccache-tissot-build-miui.sh-${{ github.run_id }}
+        restore-keys: |
+          kernel-ccache-tissot-build-miui.sh-
+          kernel-ccache-tissot-
+          kernel-ccache-
+
+    - name: Setup Toolchain (GCC)
+      run: |
+         sudo apt-get update
+         sudo apt-get install -y gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu
+
+    - name: Cloning the necessary resources
+      run: |
+          
+          echo "Clone AnyKernel3 for packing kernel (repo: https://github.com/AstideLabs/AnyKernel3)"
+          git clone https://github.com/socialdoctor555-droid/AnyKernel3 -b Skernel --single-branch --depth=1 anykernel
+          echo ".......Anykernel sources cloned....."
+
+    - name: Config Preparation
+      run: |
+         # NOTE: these defaults must match the ones in build-miui.sh.
+         export CCACHE_DIR="$HOME/.cache/ccache_mikernel"
+         export CC="aarch64-linux-gnu-gcc"
+         export CXX="aarch64-linux-gnu-g++"
+         export CCACHE_COMPILERCHECK=content
+         export CCACHE_SLOPPINESS=time_macros,include_file_mtime,include_file_ctime
+
+         DEFCONFIG="arch/arm64/configs/tissot_defconfig"
+
+         MAKE_ARGS="ARCH=arm64 \
+           SUBARCH=arm64 \
+           O=out \
+           CC=aarch64-linux-gnu-gcc \
+           HOSTCC=gcc \
+           CROSS_COMPILE=aarch64-linux-gnu- \
+           CROSS_COMPILE_ARM32=arm-linux-gnueabihf- \
+           CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-"
+
+         echo "CCACHE_DIR: [$CCACHE_DIR]"
+         echo "DEFCONFIG: [$DEFCONFIG]"
+
+         echo "......Generating base defconfig......."
+         # Extract just the filename to avoid path duplication in kernel build system
+         make $MAKE_ARGS "$(basename "$DEFCONFIG")"
+
+         echo "Resolving config dependencies......."
+         make $MAKE_ARGS olddefconfig
+
+    - name: Build Kernel
+      run: |
+        chmod +x build-miui.sh
+        echo "Using build-miui.sh....."
+        bash build-miui.sh
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v6
+      with:
+        name: O-Kernel_v1
+        path: ./*.zip
+        if-no-files-found: error
+
+    - name: Upload Patch Rejects (debug)
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: susfs-patch-rejects
+        path: "**/*.rej"
+        if-no-files-found: ignore
