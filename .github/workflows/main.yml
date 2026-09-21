@@ -1,0 +1,30 @@
+on:
+  workflow_dispatch:
+jobs:
+  build:
+
+    name: Build Kernel for Xiaomi Mi A1 (tissot)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential git curl wget bison flex zip bc cpio libssl-dev ccache python-is-python3 libstdc++6 rsync perl
+
+    - name: Build Kernel
+      run: |
+        chmod +x mia1.sh
+        echo "Using mia1.sh....."
+        bash mia1.sh
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: mounkernel.zip
+        path: ./*.zip
+        if-no-files-found: error
