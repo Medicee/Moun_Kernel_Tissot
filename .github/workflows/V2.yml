@@ -1,0 +1,73 @@
+name: Mi A1
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Kernel version string (used in zip name)"
+        default: "1"
+      hybrid:
+        description: "Apply the Hybrid cherry-picks"
+        type: boolean
+        default: true
+jobs:
+  build:
+
+    name: Build Kernel for Xiaomi Mi A1
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0   # full history so the Hybrid commits can be cherry-picked
+
+    - name: Cleanup Disk Space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential git curl wget bison flex zip bc cpio libssl-dev ccache python-is-python3
+
+    - name: Setup Cache (ccache)
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/ccache_mikernel
+        key: kernel-ccache-tissot-build-miui.sh-${{ github.run_id }}
+        restore-keys: |
+          kernel-ccache-tissot-build-miui.sh-
+          kernel-ccache-tissot-
+          kernel-ccache-
+
+    - name: Cache Toolchain (Android GCC 4.9)
+      uses: actions/cache@v5
+      with:
+        path: ~/Toolchain
+        key: toolchain-lineage-gcc49-v1
+
+    - name: Build Kernel
+      env:
+        KV: ${{ inputs.version }}
+        APPLY_HYBRID: ${{ inputs.hybrid }}
+      run: |
+        chmod +x build-miui.sh
+        echo "Using build-miui.sh....."
+        bash build-miui.sh
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v6
+      with:
+        name: Moun_Kernel_V${{ inputs.version }}-Tissot-4.9-Custom-Hybrid
+        path: ./*.zip
+        if-no-files-found: error
+
+    - name: Upload Patch Rejects (debug)
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: susfs-patch-rejects
+        path: "**/*.rej"
+        if-no-files-found: ignore
