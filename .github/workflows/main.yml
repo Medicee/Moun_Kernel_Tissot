@@ -18,9 +18,9 @@ jobs:
 
     - name: Build Kernel
       run: |
-        chmod +x mia1.sh
-        echo "Using mia1.sh....."
-        bash mia1.sh
+        chmod +x build.sh
+        echo "Using build.sh....."
+        bash build.sh
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
